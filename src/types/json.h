@@ -134,6 +134,31 @@ struct JsonValue {
     return result_count;
   }
 
+  StatusOr<std::vector<size_t>> ArrIndex(std::string_view path, const jsoncons::json& needle, size_t start, size_t end) {
+    try {
+      jsoncons::json founded_value = jsoncons::jsonpath::json_query(value, path);
+      if (founded_value.empty() || !founded_value.is_array()) {
+        return {0};
+      }
+      auto begin_it = founded_value.array_range().begin() + start;
+      auto end_it = founded_value.array_range().begin() + end;
+      if (start < 0) {
+        return {-1};
+      }
+      if (end >= founded_value.size()) {
+        end_it = founded_value.array_range().end();
+      }
+      auto it = std::find(begin_it, end_it, needle);
+      if (it != end_it) {
+        return {it - founded_value.array_range().begin()};
+      }
+      return {-1};
+
+    } catch (const jsoncons::jsonpath::jsonpath_error &e) {
+      return {Status::NotOK, e.what()};
+    }
+  }
+
   StatusOr<std::vector<std::string>> Type(std::string_view path) const {
     std::vector<std::string> types;
     try {

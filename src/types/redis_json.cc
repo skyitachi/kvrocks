@@ -151,6 +151,32 @@ rocksdb::Status Json::ArrAppend(const std::string &user_key, const std::string &
   return write(ns_key, &metadata, value);
 }
 
+rocksdb::Status Json::ArrIndex(const std::string &user_key, const std::string &path, const std::string& needle,
+                               size_t start, size_t end, std::vector<size_t> *result_count) {
+  auto ns_key = AppendNamespacePrefix(user_key);
+
+  std::vector<jsoncons::json> append_values;
+  auto needle_res = JsonValue::FromString(needle, storage_->GetConfig()->json_max_nesting_depth);
+  if (!needle_res) return rocksdb::Status::InvalidArgument(needle_res.Msg());
+  auto needle_value = *std::move(needle_res);
+
+  LockGuard guard(storage_->GetLockManager(), ns_key);
+
+  JsonMetadata metadata;
+  JsonValue value;
+  auto s = read(ns_key, &metadata, &value);
+  if (!s.ok()) return s;
+
+  auto index_res = value.ArrIndex(path, append_values, start, end);
+  if (!index_res) return rocksdb::Status::InvalidArgument(index_res.Msg());
+  *result_count = *index_res;
+
+  bool is_write = std::any_of(result_count->begin(), result_count->end(), [](uint64_t c) { return c > 0; });
+  if (!is_write) return rocksdb::Status::OK();
+
+  return rocksdb::Status::OK();
+}
+
 rocksdb::Status Json::Type(const std::string &user_key, const std::string &path, std::vector<std::string> *results) {
   auto ns_key = AppendNamespacePrefix(user_key);
 
